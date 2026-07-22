@@ -1,0 +1,71 @@
+name: Bootstrap complete reproducible repository
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bootstrap/**"
+      - ".github/workflows/bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out bootstrap repository
+        uses: actions/checkout@v4
+
+      - name: Wait until every archive fragment is present
+        id: fragments
+        shell: bash
+        run: |
+          count=$(find bootstrap -maxdepth 1 -type f -name 'source.tar.gz.b64.part-*' 2>/dev/null | wc -l)
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          if [ "$count" -lt 3 ]; then
+            echo "Archive incomplete (${count}/3 fragments); nothing to publish yet."
+          fi
+
+      - name: Reconstruct repository source
+        if: steps.fragments.outputs.count == '3'
+        shell: bash
+        run: |
+          cat bootstrap/source.tar.gz.b64.part-* | base64 --decode > /tmp/eoir-source.tar.gz
+          tar -xzf /tmp/eoir-source.tar.gz -C .
+          rm -rf bootstrap .github/workflows/bootstrap.yml
+
+      - name: Set up Python
+        if: steps.fragments.outputs.count == '3'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        if: steps.fragments.outputs.count == '3'
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Install LaTeX toolchain
+        if: steps.fragments.outputs.count == '3'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            latexmk texlive-latex-base texlive-latex-recommended \
+            texlive-latex-extra texlive-fonts-recommended texlive-pictures fonts-dejavu-core
+
+      - name: Reproduce, test and compile
+        if: steps.fragments.outputs.count == '3'
+        run: make verify
+
+      - name: Publish complete repository tree
+        if: steps.fragments.outputs.count == '3'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: publish complete reproducible EO/IR domain-shift package [skip ci]"
+          git push origin HEAD:main
