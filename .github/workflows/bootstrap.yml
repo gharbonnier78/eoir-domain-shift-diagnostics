@@ -25,12 +25,12 @@ jobs:
         run: |
           count=$(find bootstrap -maxdepth 1 -type f -name 'source.tar.gz.b64.part-*' 2>/dev/null | wc -l)
           echo "count=${count}" >> "$GITHUB_OUTPUT"
-          if [ "$count" -lt 3 ]; then
-            echo "Archive incomplete (${count}/3 fragments); nothing to publish yet."
+          if [ "$count" -lt 9 ]; then
+            echo "Archive incomplete (${count}/9 fragments); nothing to publish yet."
           fi
 
       - name: Reconstruct repository source
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         shell: bash
         run: |
           cat bootstrap/source.tar.gz.b64.part-* | base64 --decode > /tmp/eoir-source.tar.gz
@@ -38,18 +38,18 @@ jobs:
           rm -rf bootstrap .github/workflows/bootstrap.yml
 
       - name: Set up Python
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install Python dependencies
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
       - name: Install LaTeX toolchain
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -57,11 +57,11 @@ jobs:
             texlive-latex-extra texlive-fonts-recommended texlive-pictures fonts-dejavu-core
 
       - name: Reproduce, test and compile
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         run: make verify
 
       - name: Publish complete repository tree
-        if: steps.fragments.outputs.count == '3'
+        if: steps.fragments.outputs.count == '9'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
